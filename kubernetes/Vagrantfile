@@ -1,0 +1,213 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
+
+  config.vm.define "kub" do |kub|
+
+    # Every Vagrant development environment requires a box. You can search for
+    # boxes at https://vagrantcloud.com/search.
+    kub.vm.box = "rockylinux/9"
+    kub.vm.hostname = "kubernetes-vm"
+
+    # Disable automatic box update checking. If you disable this, then
+    # boxes will only be checked for updates when the user runs
+    # `vagrant box outdated`. This is not recommended.
+    # config.vm.box_check_update = false
+
+    # Create a forwarded port mapping which allows access to a specific port
+    # within the machine from a port on the host machine. In the example below,
+    # accessing "localhost:8080" will access port 80 on the guest machine.
+    # NOTE: This will enable public access to the opened port
+    # config.vm.network "forwarded_port", guest: 80, host: 8080
+
+    # Create a forwarded port mapping which allows access to a specific port
+    # within the machine from a port on the host machine and only allow access
+    # via 127.0.0.1 to disable public access
+    # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+    # Create a private network, which allows host-only access to the machine
+    # using a specific IP.
+    # config.vm.network "private_network", ip: "192.168.33.10"
+
+    # Create a public network, which generally matched to bridged network.
+    # Bridged networks make the machine appear as another physical device on
+    # your network.
+    # config.vm.network "public_network"
+
+    # Share an additional folder to the guest VM. The first argument is
+    # the path on the host to the actual folder. The second argument is
+    # the path on the guest to mount the folder. And the optional third
+    # argument is a set of non-required options.
+    # config.vm.synced_folder "../data", "/vagrant_data"
+
+    # Provider-specific configuration so you can fine-tune various
+    # backing providers for Vagrant. These expose provider-specific options.
+    # Example for VirtualBox:
+    #
+    # config.vm.provider "virtualbox" do |vb|
+    #   # Display the VirtualBox GUI when booting the machine
+    #   vb.gui = true
+    #
+    #   # Customize the amount of memory on the VM:
+    #   vb.memory = "1024"
+    # end
+    #
+    # View the documentation for the provider you are using for more
+    # information on available options.
+
+    kub.vm.provision :k3s, run: "once" do |k3s|
+      # installer_url: can be anything that curl can access from the guest
+      # default =>`https://get.k3s.io`
+      # type => String
+      k3s.installer_url = 'https://get.k3s.io'
+
+      # args: are command line arguments to be passed to the shell, e.g.:
+      # `curl ... | sh -s - #{args}`
+      # type => String || Array<string>
+      k3s.args = "server --selinux"
+      # or
+      k3s.args = %w[server --selinux]
+
+      # env: environment variables to be set before invoking the installer script
+      # type => String || Array<String> || Hash
+      k3s.env = %w[K3S_KUBECONFIG_MODE=0644 K3S_TOKEN=vagrant]
+      # or
+      k3s.env = ENV.select{|k| k.start_with?('K3S_') || k.start_with?('INSTALL_K3S_')}.merge({
+        :K3S_KUBECONFIG_MODE => '0640', # pass this as a string unless you like weird results in your guest ...
+        :K3S_SELINUX => true,
+      })
+      # or
+      k3s.env = <<~ENV
+        K3S_KUBECONFIG_MODE=0640
+        K3S_SELINUX=true
+      ENV
+
+      # env_path: where to write the envvars to be sourced prior to invoking the installer script
+      # default => `/etc/rancher/k3s/install.env`
+      k3s.env_path = '/etc/rancher/k3s/install.env'
+      k3s.env_mode = '0600' # default
+      k3s.env_owner = 'root:root' #default
+
+      # config: config file content in yaml
+      # type => String || Hash
+      k3s.config = {
+        :disable => %w[local-storage servicelb]
+      }
+      # or
+      k3s.config = <<~YAML
+        disable:
+        - local-storage
+        - servicelb
+      YAML
+      # config_mode: config file permissions
+      # type => String
+      # default => `0600`
+      k3s.config_mode = '0644' # side-step https://github.com/k3s-io/k3s/issues/4321
+      k3s.config_owner = 'root:root' #default
+
+      # config_path: where to write the config yaml.
+      # if you override this be sure to let k3s know, e.g.
+      #   k3s.env = { :INSTALL_K3S_EXEC => '--config=/some/other/config.yaml' }
+      # or
+      #   k3s.args = '--config=/some/other/config.yaml'
+      # default => `/etc/rancher/k3s/config.yaml`
+      k3s.config_path = '/etc/rancher/k3s/config.yaml'
+
+      # skip_start: install but don't start K3s
+      # type => Boolean
+      # default => false
+      # k3s.skip_start = true
+    end
+
+    # Enable provisioning with a shell script. Additional provisioners such as
+    # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
+    # documentation for more information about their specific syntax and use.
+    kub.vm.provision "shell", inline: <<-SHELL
+      # dnf update -y
+      dnf install mc -y
+      # https://0to1.nl/post/k3s-kubectl-permission/
+      #sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+	    #echo K3S_KUBECNFIG_MODE=\"644\" >> /etc/systemd/system/k3s.service.env
+      sudo mkdir ~/.kube
+      sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 
+      sudo chown $USER ~/.kube/config 
+      sudo chmod 600 ~/.kube/config
+      export KUBECONFIG=~/.kube/config
+    SHELL
+  end
+  
+  config.vm.define "es" do |elasticsearch|
+    elasticsearch.vm.box = "rockylinux/9"
+    elasticsearch.vm.hostname = "elasticsearch-vm"
+    elasticsearch.vm.network "private_network", ip: "192.168.91.100"
+    elasticsearch.vm.synced_folder "../data", "/vagrant_data"
+    elasticsearch.vm.network "forwarded_port", guest: 9200, host: 9200
+    elasticsearch.vm.network "forwarded_port", guest: 9300, host: 9300
+
+    elasticsearch.vm.provision "shell", inline: <<-SHELL
+      dnf install wget mc net-tools -y
+      # dnf update -y
+	  
+      curl --progress-bar --remote-name --location https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.5.3-x86_64.rpm
+      curl --progress-bar --remote-name --location https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.5.3-x86_64.rpm.sha512
+      sha512sum -c elasticsearch-8.5.3-x86_64.rpm.sha512 
+      sudo rpm --install elasticsearch-8.5.3-x86_64.rpm
+
+      sudo cp /vagrant_data/elasticsearch.yml /etc/elasticsearch/elasticsearch.yml
+      sudo systemctl daemon-reload
+      sudo systemctl enable elasticsearch.service
+      sudo systemctl start elasticsearch.service
+
+      sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -a -b -s -u elastic > /vagrant_data/elasticsearch-password
+      
+      sudo /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana > /vagrant_data/kibana-enrollment
+    SHELL
+	
+  end
+
+  config.vm.define "kibana" do |kibana|
+    kibana.vm.box = "rockylinux/9"
+    kibana.vm.hostname = "kibana-vm"
+    kibana.vm.network "private_network", ip: "192.168.91.101"
+    kibana.vm.synced_folder "../data", "/vagrant_data"
+    kibana.vm.network "forwarded_port", guest: 5601, host: 5601
+
+    kibana.vm.provision "shell", inline: <<-SHELL
+      dnf install wget mc vim net-tools -y
+      # dnf update -y
+
+      sudo update-crypto-policies --set DEFAULT:SHA1
+      sudo rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
+
+      sudo cat <<EOT >> /etc/yum.repos.d/kibana.repo
+[kibana-8.x]
+name=Kibana repository for 8.x packages
+baseurl=https://artifacts.elastic.co/packages/8.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+EOT
+
+      sudo dnf install -y kibana
+    
+      sudo cp /vagrant_data/kibana.yml /etc/kibana/kibana.yml
+
+      es_enroll=$(cat /vagrant_data/kibana-enrollment)
+      sudo /usr/share/kibana/bin/kibana-setup --enrollment-token $es_enroll
+
+      sudo systemctl daemon-reload
+      sudo systemctl enable kibana.service
+      sudo systemctl start kibana.service
+    SHELL
+  end
+end
