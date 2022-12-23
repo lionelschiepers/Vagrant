@@ -2,3 +2,4 @@
 *-enrollment
 .vagrant
 vmcfg
+kubeconfig

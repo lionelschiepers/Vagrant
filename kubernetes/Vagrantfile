@@ -1,6 +1,8 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
+
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
@@ -12,11 +14,38 @@ Vagrant.configure("2") do |config|
 
   config.vm.define "kub" do |kub|
 
+    kub.vm.provider "vmware_desktop" do |vm_kub|
+      vm_kub.gui = true
+      vm_kub.vmx['numvcpus'] = '2' 
+      vm_kub.vmx['memsize'] = '4096'
+    end
+
+    kub.vm.provider "virtualbox" do |vb_kub|
+      vb_kub.gui = true
+      vb_kub.memory = 4096
+      vb_kub.cpus = 2
+      vb_kub.customize ["modifyvm", :id, "--vram", "32"]
+    end
+
     # Every Vagrant development environment requires a box. You can search for
     # boxes at https://vagrantcloud.com/search.
     kub.vm.box = "rockylinux/9"
     kub.vm.hostname = "kubernetes-vm"
-
+    # kub.vm.network "private_network", ip: "192.168.91.200"
+    kub.vm.synced_folder "../data", "/vagrant_data"
+    kub.vm.network "forwarded_port", guest: 8001, host: 8001
+    kub.vm.network "forwarded_port", guest: 6443, host: 6443
+    kub.vm.network "forwarded_port", guest: 30000, host: 30000
+    kub.vm.network "forwarded_port", guest: 30001, host: 30001
+    kub.vm.network "forwarded_port", guest: 30002, host: 30002
+    kub.vm.network "forwarded_port", guest: 30003, host: 30003
+    kub.vm.network "forwarded_port", guest: 30004, host: 30004
+=begin
+    # Expose NodePort ports
+    for p in 30000..30100
+      kub.vm.network "forwarded_port", guest: p, host: p, protocol: "tcp"
+    end
+=end
     # Disable automatic box update checking. If you disable this, then
     # boxes will only be checked for updates when the user runs
     # `vagrant box outdated`. This is not recommended.
@@ -62,7 +91,7 @@ Vagrant.configure("2") do |config|
     #
     # View the documentation for the provider you are using for more
     # information on available options.
-
+=begin
     kub.vm.provision :k3s, run: "once" do |k3s|
       # installer_url: can be anything that curl can access from the guest
       # default =>`https://get.k3s.io`
@@ -126,25 +155,94 @@ Vagrant.configure("2") do |config|
       # default => false
       # k3s.skip_start = true
     end
+=end
 
-    # Enable provisioning with a shell script. Additional provisioners such as
-    # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
-    # documentation for more information about their specific syntax and use.
+    kub.vm.provision "shell", inline: <<-SHELL
+      dnf install epel-release -y
+      dnf update --refresh -y
+      dnf install dkms kernel-devel kernel-headers gcc make bzip2 perl elfutils-libelf-devel -y
+    SHELL
+
+    kub.vm.provision :reload
+
+    kub.vm.provision "shell", inline: <<-SHELL
+      curl --progress-bar --remote-name https://download.virtualbox.org/virtualbox/7.0.4/VBoxGuestAdditions_7.0.4.iso
+      mv VBoxGuestAdditions_7.0.4.iso /tmp/
+      sudo mount /tmp/VBoxGuestAdditions_7.0.4.iso /run/media/
+      dnf install libX11 libXt libXext libXmu -y
+      sudo /run/media/VBoxLinuxAdditions.run
+      echo "VirtualBox additions updated"
+    SHELL
+
+    kub.vm.provision :reload
+
     kub.vm.provision "shell", inline: <<-SHELL
       # dnf update -y
-      dnf install mc -y
+      dnf install mc wget net-tools -y -q
+
+      # https://levelup.gitconnected.com/local-kubernetes-development-using-vagrant-and-k3s-547bd5687a7f
+      echo "Installing k3s"
+      curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" sh -
+      echo "k3s installed"
+
+      echo "Creating admin user"
+      # https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingserviceaccttoken.htm
+
+      #/usr/local/bin/kubectl -n kube-system create serviceaccount ls-account
+      #/usr/local/bin/kubectl -n kube-system create rolebinding ls-account-rolebinding --clusterrole=cluster-admin --serviceaccount=kube-system:ls-account
+      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/dashboard/admin-user.yaml
+      #/usr/local/bin/kubectl describe secrets oke-ls-account-token -n kube-system
+      /usr/local/bin/kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
+
+      echo "Installing Dashboard"
+      /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/dashboard/dashboard-service.yaml
+
+
       # https://0to1.nl/post/k3s-kubectl-permission/
       #sudo chmod 644 /etc/rancher/k3s/k3s.yaml
 	    #echo K3S_KUBECNFIG_MODE=\"644\" >> /etc/systemd/system/k3s.service.env
-      sudo mkdir ~/.kube
-      sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 
-      sudo chown $USER ~/.kube/config 
-      sudo chmod 600 ~/.kube/config
-      export KUBECONFIG=~/.kube/config
+      
+      #sudo mkdir ~/.kube
+      #sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 
+      #sudo chown $USER ~/.kube/config 
+      #sudo chmod 600 ~/.kube/config
+      #export KUBECONFIG=~/.kube/config
+
+      echo "Installing Prometheus"
+      /usr/local/bin/kubectl create namespace monitoring
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/prometheus/clusterRole.yaml
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/prometheus/config-map.yaml
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/prometheus/prometheus-deployment.yaml
+      echo "Waiting deployment is finished"
+      /usr/local/bin/kubectl wait deployment -n monitoring prometheus-deployment --for condition=Available=True --timeout=120s
+      /usr/local/bin/kubectl get deployments --namespace=monitoring
+      /usr/local/bin/kubectl get pods --namespace=monitoring
+      echo "Prometheus installed"
+
+      /usr/local/bin/kubectl get all --all-namespaces
+      /usr/local/bin/kubectl cluster-info
+
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/prometheus/prometheus-service.yaml --namespace=monitoring
+      /usr/local/bin/kubectl get services -n monitoring
+
+      /usr/local/bin/kubectl apply -f https://k8s.io/examples/controllers/nginx-deployment.yaml
+      /usr/local/bin/kubectl wait deployment nginx-deployment --for condition=Available=True --timeout=120s
+      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/nginx-sample/nginx-service.yaml
+
+
+
     SHELL
+
   end
   
   config.vm.define "es" do |elasticsearch|
+    elasticsearch.vm.provider "vmware_desktop" do |vm_es|
+      vm_es.gui = false
+      vm_es.vmx['numvcpus'] = '2' 
+      vm_es.vmx['memsize'] = '3072'
+    end
+
     elasticsearch.vm.box = "rockylinux/9"
     elasticsearch.vm.hostname = "elasticsearch-vm"
     elasticsearch.vm.network "private_network", ip: "192.168.91.100"
@@ -153,7 +251,7 @@ Vagrant.configure("2") do |config|
     elasticsearch.vm.network "forwarded_port", guest: 9300, host: 9300
 
     elasticsearch.vm.provision "shell", inline: <<-SHELL
-      dnf install wget mc net-tools -y
+      dnf install wget mc net-tools -y -q
       # dnf update -y
 	  
       curl --progress-bar --remote-name --location https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.5.3-x86_64.rpm
@@ -174,6 +272,12 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "kibana" do |kibana|
+    kibana.vm.provider "vmware_desktop" do |vm_kib|
+      vm_kib.gui = false
+      vm_kib.vmx['numvcpus'] = '2' 
+      vm_kib.vmx['memsize'] = '3072'
+    end
+
     kibana.vm.box = "rockylinux/9"
     kibana.vm.hostname = "kibana-vm"
     kibana.vm.network "private_network", ip: "192.168.91.101"
@@ -181,7 +285,7 @@ Vagrant.configure("2") do |config|
     kibana.vm.network "forwarded_port", guest: 5601, host: 5601
 
     kibana.vm.provision "shell", inline: <<-SHELL
-      dnf install wget mc vim net-tools -y
+      dnf install wget mc vim net-tools -y -q
       # dnf update -y
 
       sudo update-crypto-policies --set DEFAULT:SHA1
