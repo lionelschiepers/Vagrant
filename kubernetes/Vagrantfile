@@ -1,12 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-ENV['VAGRANT_DEFAULT_PROVIDER'] = 'virtualbox'
-
-# All Vagrant configuration is done below. The "2" in Vagrant.configure
-# configures the configuration version (we support older styles for
-# backwards compatibility). Please don't change it unless you know what
-# you're doing.
 Vagrant.configure("2") do |config|
   # The most common configuration options are documented and commented below.
   # For a complete reference, please see the online documentation at
@@ -15,14 +9,15 @@ Vagrant.configure("2") do |config|
   config.vm.define "kub" do |kub|
 
     kub.vm.provider "vmware_desktop" do |vm_kub|
-      vm_kub.gui = true
-      vm_kub.vmx['numvcpus'] = '2' 
-      vm_kub.vmx['memsize'] = '4096'
+      vm_kub.gui = false
+      vm_kub.vmx['numvcpus'] = '4' 
+      vm_kub.vmx['memsize'] = '8192'
+      vm_kub.ssh_info_public = true
     end
 
     kub.vm.provider "virtualbox" do |vb_kub|
-      vb_kub.gui = true
-      vb_kub.memory = 4096
+      vb_kub.gui = false
+      vb_kub.memory = 8192
       vb_kub.cpus = 2
       vb_kub.customize ["modifyvm", :id, "--vram", "32"]
     end
@@ -31,7 +26,7 @@ Vagrant.configure("2") do |config|
     # boxes at https://vagrantcloud.com/search.
     kub.vm.box = "rockylinux/9"
     kub.vm.hostname = "kubernetes-vm"
-    # kub.vm.network "private_network", ip: "192.168.91.200"
+    kub.vm.network "private_network", ip: "192.168.91.200"
     kub.vm.synced_folder "../data", "/vagrant_data"
     kub.vm.network "forwarded_port", guest: 8001, host: 8001
     kub.vm.network "forwarded_port", guest: 6443, host: 6443
@@ -39,124 +34,21 @@ Vagrant.configure("2") do |config|
     kub.vm.network "forwarded_port", guest: 30001, host: 30001
     kub.vm.network "forwarded_port", guest: 30002, host: 30002
     kub.vm.network "forwarded_port", guest: 30003, host: 30003
-    kub.vm.network "forwarded_port", guest: 30004, host: 30004
+    kub.vm.network "forwarded_port", guest: 30004, host: 30004 # grafana
 =begin
     # Expose NodePort ports
     for p in 30000..30100
       kub.vm.network "forwarded_port", guest: p, host: p, protocol: "tcp"
     end
 =end
-    # Disable automatic box update checking. If you disable this, then
-    # boxes will only be checked for updates when the user runs
-    # `vagrant box outdated`. This is not recommended.
-    # config.vm.box_check_update = false
-
-    # Create a forwarded port mapping which allows access to a specific port
-    # within the machine from a port on the host machine. In the example below,
-    # accessing "localhost:8080" will access port 80 on the guest machine.
-    # NOTE: This will enable public access to the opened port
-    # config.vm.network "forwarded_port", guest: 80, host: 8080
-
-    # Create a forwarded port mapping which allows access to a specific port
-    # within the machine from a port on the host machine and only allow access
-    # via 127.0.0.1 to disable public access
-    # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
-
-    # Create a private network, which allows host-only access to the machine
-    # using a specific IP.
-    # config.vm.network "private_network", ip: "192.168.33.10"
 
     # Create a public network, which generally matched to bridged network.
     # Bridged networks make the machine appear as another physical device on
     # your network.
     # config.vm.network "public_network"
 
-    # Share an additional folder to the guest VM. The first argument is
-    # the path on the host to the actual folder. The second argument is
-    # the path on the guest to mount the folder. And the optional third
-    # argument is a set of non-required options.
-    # config.vm.synced_folder "../data", "/vagrant_data"
-
-    # Provider-specific configuration so you can fine-tune various
-    # backing providers for Vagrant. These expose provider-specific options.
-    # Example for VirtualBox:
-    #
-    # config.vm.provider "virtualbox" do |vb|
-    #   # Display the VirtualBox GUI when booting the machine
-    #   vb.gui = true
-    #
-    #   # Customize the amount of memory on the VM:
-    #   vb.memory = "1024"
-    # end
-    #
-    # View the documentation for the provider you are using for more
-    # information on available options.
 =begin
-    kub.vm.provision :k3s, run: "once" do |k3s|
-      # installer_url: can be anything that curl can access from the guest
-      # default =>`https://get.k3s.io`
-      # type => String
-      k3s.installer_url = 'https://get.k3s.io'
-
-      # args: are command line arguments to be passed to the shell, e.g.:
-      # `curl ... | sh -s - #{args}`
-      # type => String || Array<string>
-      k3s.args = "server --selinux"
-      # or
-      k3s.args = %w[server --selinux]
-
-      # env: environment variables to be set before invoking the installer script
-      # type => String || Array<String> || Hash
-      k3s.env = %w[K3S_KUBECONFIG_MODE=0644 K3S_TOKEN=vagrant]
-      # or
-      k3s.env = ENV.select{|k| k.start_with?('K3S_') || k.start_with?('INSTALL_K3S_')}.merge({
-        :K3S_KUBECONFIG_MODE => '0640', # pass this as a string unless you like weird results in your guest ...
-        :K3S_SELINUX => true,
-      })
-      # or
-      k3s.env = <<~ENV
-        K3S_KUBECONFIG_MODE=0640
-        K3S_SELINUX=true
-      ENV
-
-      # env_path: where to write the envvars to be sourced prior to invoking the installer script
-      # default => `/etc/rancher/k3s/install.env`
-      k3s.env_path = '/etc/rancher/k3s/install.env'
-      k3s.env_mode = '0600' # default
-      k3s.env_owner = 'root:root' #default
-
-      # config: config file content in yaml
-      # type => String || Hash
-      k3s.config = {
-        :disable => %w[local-storage servicelb]
-      }
-      # or
-      k3s.config = <<~YAML
-        disable:
-        - local-storage
-        - servicelb
-      YAML
-      # config_mode: config file permissions
-      # type => String
-      # default => `0600`
-      k3s.config_mode = '0644' # side-step https://github.com/k3s-io/k3s/issues/4321
-      k3s.config_owner = 'root:root' #default
-
-      # config_path: where to write the config yaml.
-      # if you override this be sure to let k3s know, e.g.
-      #   k3s.env = { :INSTALL_K3S_EXEC => '--config=/some/other/config.yaml' }
-      # or
-      #   k3s.args = '--config=/some/other/config.yaml'
-      # default => `/etc/rancher/k3s/config.yaml`
-      k3s.config_path = '/etc/rancher/k3s/config.yaml'
-
-      # skip_start: install but don't start K3s
-      # type => Boolean
-      # default => false
-      # k3s.skip_start = true
-    end
-=end
-
+    # update virtualbox additions
     kub.vm.provision "shell", inline: <<-SHELL
       dnf install epel-release -y
       dnf update --refresh -y
@@ -175,6 +67,7 @@ Vagrant.configure("2") do |config|
     SHELL
 
     kub.vm.provision :reload
+=end
 
     kub.vm.provision "shell", inline: <<-SHELL
       # dnf update -y
@@ -182,33 +75,56 @@ Vagrant.configure("2") do |config|
 
       # https://levelup.gitconnected.com/local-kubernetes-development-using-vagrant-and-k3s-547bd5687a7f
       echo "Installing k3s"
-      curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" sh -
+      curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE="644" INSTALL_K3S_EXEC="--disable traefik" sh -
       echo "k3s installed"
 
-      echo "Creating admin user"
-      # https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingserviceaccttoken.htm
+      # https://0to1.nl/post/k3s-kubectl-permission/
+      sudo mkdir ~/.kube
+      sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 
+      sudo chown $USER ~/.kube/config 
+      sudo chmod 644 ~/.kube/config
+      export KUBECONFIG=~/.kube/config
 
-      #/usr/local/bin/kubectl -n kube-system create serviceaccount ls-account
-      #/usr/local/bin/kubectl -n kube-system create rolebinding ls-account-rolebinding --clusterrole=cluster-admin --serviceaccount=kube-system:ls-account
-      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/dashboard/admin-user.yaml
-      #/usr/local/bin/kubectl describe secrets oke-ls-account-token -n kube-system
-      /usr/local/bin/kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
+      echo "Installing Istio"
+      curl -L https://istio.io/downloadIstio | sh -
+      read istiofolder < <(ls -d istio-*)
+      ./$istiofolder/bin/istioctl install --set profile=demo -y
+      /usr/local/bin/kubectl label namespace default istio-injection=enabled
+      /usr/local/bin/kubectl get svc istio-ingressgateway -n istio-system
+
+      echo "Waiting deployment is finished"
+      /usr/local/bin/kubectl wait deployment -n istio-system istiod --for condition=Available=True --timeout=300s
+      /usr/local/bin/kubectl wait deployment -n istio-system istio-ingressgateway --for condition=Available=True --timeout=300s
+      /usr/local/bin/kubectl wait deployment -n istio-system istio-egressgateway --for condition=Available=True --timeout=300s
+
+      export INGRESS_HOST=$(/usr/local/bin/kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+      export INGRESS_PORT=$(/usr/local/bin/kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].port}')
+      export SECURE_INGRESS_PORT=$(/usr/local/bin/kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="https")].port}')
+      export GATEWAY_URL=$INGRESS_HOST:$INGRESS_PORT
+
+      # https://istio.io/latest/docs/examples/bookinfo/
+      /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.16/samples/bookinfo/platform/kube/bookinfo.yaml
+      /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.16/samples/bookinfo/networking/bookinfo-gateway.yaml
+
+      echo "Installating Kiali"
+      /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.16/samples/addons/kiali.yaml
+      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/kiali/istio.yaml
+      
+      /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/istio/istio/master/samples/addons/prometheus.yaml
+
+      echo "Waiting deployment is finished"
+      /usr/local/bin/kubectl wait deployment -n istio-system kiali --for condition=Available=True --timeout=300s
 
       echo "Installing Dashboard"
       /usr/local/bin/kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
       /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/dashboard/dashboard-service.yaml
 
+      echo "Creating admin user"
+      # https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingserviceaccttoken.htm
+      /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/dashboard/admin-user.yaml
+      /usr/local/bin/kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
 
-      # https://0to1.nl/post/k3s-kubectl-permission/
-      #sudo chmod 644 /etc/rancher/k3s/k3s.yaml
-	    #echo K3S_KUBECNFIG_MODE=\"644\" >> /etc/systemd/system/k3s.service.env
-      
-      #sudo mkdir ~/.kube
-      #sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config 
-      #sudo chown $USER ~/.kube/config 
-      #sudo chmod 600 ~/.kube/config
-      #export KUBECONFIG=~/.kube/config
-
+      : <<'ENDCOMMENT'      
       echo "Installing Prometheus"
       /usr/local/bin/kubectl create namespace monitoring
       /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/prometheus/clusterRole.yaml
@@ -229,11 +145,15 @@ Vagrant.configure("2") do |config|
       /usr/local/bin/kubectl apply -f https://k8s.io/examples/controllers/nginx-deployment.yaml
       /usr/local/bin/kubectl wait deployment nginx-deployment --for condition=Available=True --timeout=120s
       /usr/local/bin/kubectl apply -f /vagrant_data/kubernetes/nginx-sample/nginx-service.yaml
+      ENDCOMMENT
 
-
-
+      # https://devopscube.com/setup-grafana-kubernetes/
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/grafana/grafana-datasource-config.yaml
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/grafana/deployment.yaml
+      /usr/local/bin/kubectl create -f /vagrant_data/kubernetes/grafana/service.yaml
+      # retrieve podname in shell
+      # read podname ready status < <(kubectl get pods -o wide -n monitoring | grep grafana)
     SHELL
-
   end
   
   config.vm.define "es" do |elasticsearch|
@@ -241,6 +161,7 @@ Vagrant.configure("2") do |config|
       vm_es.gui = false
       vm_es.vmx['numvcpus'] = '2' 
       vm_es.vmx['memsize'] = '3072'
+      vm_es.ssh_info_public = true
     end
 
     elasticsearch.vm.box = "rockylinux/9"
@@ -276,6 +197,7 @@ Vagrant.configure("2") do |config|
       vm_kib.gui = false
       vm_kib.vmx['numvcpus'] = '2' 
       vm_kib.vmx['memsize'] = '3072'
+      vm_kib.ssh_info_public = true
     end
 
     kibana.vm.box = "rockylinux/9"
