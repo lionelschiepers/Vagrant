@@ -44,12 +44,16 @@ Vagrant.configure("2") do |config|
     # config.vm.network "public_network"
 
     kub.vm.provision "shell", inline: <<-SHELL
+		export DEBIAN_FRONTEND=noninteractive
 		# https://www.letscloud.io/community/how-to-install-kubernetesk8s-and-docker-on-ubuntu-2004
 		# https://akyriako.medium.com/install-kubernetes-on-ubuntu-20-04-f1791e8cf799
 		sudo apt-get update
 		sudo apt-get install -y apt-transport-https ca-certificates curl net-tools
-				
-		sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+		# https://github.com/kubernetes/k8s.io/pull/4837#issuecomment-1446426585				
+		# sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+		# echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+		sudo curl -fsSLo /etc/apt/keyrings/kubernetes-archive-keyring.gpg https://dl.k8s.io/apt/doc/apt-key.gpg
 		echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 		
 		sudo apt-get update
@@ -138,6 +142,10 @@ EOF
 		
 		sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 		
+		# https://stackoverflow.com/questions/72844687/invalid-capacity-0-on-image-filesystem-lens-id-kubernetes
+		systemctl restart containerd
+		systemctl restart kubelet
+
 		# https://devopscube.com/setup-grafana-kubernetes/
 		sudo kubectl apply -f /vagrant_data/kubernetes/grafana/grafana-datasource-config.yaml
 		sudo kubectl apply -f /vagrant_data/kubernetes/grafana/deployment.yaml
