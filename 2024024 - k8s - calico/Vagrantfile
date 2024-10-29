@@ -136,11 +136,20 @@ EOF
     curl https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml -O
     sed -i 's/192.168.0.0\\/16/10.244.0.0\\/16/g' custom-resources.yaml
     kubectl create -f custom-resources.yaml
-    # kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml
-    watch kubectl get pods -n calico-system
-    # kubectl get pods -n calico-system
+
+    sleep 10
+    kubectl get pods -n calico-system
     kubectl get tigerastatus
     kubectl get tigerastatus -o yaml
+
+    #install dashboard
+    echo "Installing Dashboard"
+    sudo snap install helm --classic
+    helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+    helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
+
+    kubectl apply -f /vagrant_data/kubernetes/dashboard/admin-user.yaml
+    kubectl -n kube-system describe secret $(/usr/local/bin/kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
 
     # configure for vagrant user also.		
 		sudo -i -u vagrant bash << EOF
@@ -149,6 +158,8 @@ EOF
 			mkdir -p /home/vagrant/.kube
 			sudo cp /etc/kubernetes/admin.conf /home/vagrant/.kube/config
 			sudo chown 1000:1000 /home/vagrant/.kube/config
+
+      sudo cp /etc/kubernetes/admin.conf /vagrant_data/.kube/config
 EOF
 
 		#sudo kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
