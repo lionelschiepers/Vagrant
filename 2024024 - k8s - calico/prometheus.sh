@@ -8,8 +8,7 @@ pwd
 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
-#helm install prometheus prometheus-community/prometheus
-helm install prometheus-stack prometheus-community/kube-prometheus-stack
+helm install prometheus prometheus-community/kube-prometheus-stack --create-namespace --namespace prometheus --wait
 
 #kubectl create namespace monitoring
 #kubectl create -f /vagrant_data/kubernetes/prometheus/clusterRole.yaml
