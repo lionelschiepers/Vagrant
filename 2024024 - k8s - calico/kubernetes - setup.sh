@@ -73,9 +73,9 @@ curl https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/cu
 sed -i 's/192.168.0.0\/16/10.244.0.0\/16/g' custom-resources.yaml
 kubectl create -f custom-resources.yaml
 
-echo "Slepping 30 seconds"
-sleep 60
-#kubectl get pods -n calico-system
+echo "Waiting calico is installed"
+sleep 30 # we first sleep because the namespace are not yet created for checking the status.
+kubectl wait --timeout 180s --for=condition=Available tigerastatus --all
 kubectl get tigerastatus
 kubectl get tigerastatus -o yaml
 
