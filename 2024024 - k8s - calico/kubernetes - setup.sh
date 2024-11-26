@@ -79,6 +79,10 @@ kubectl wait --timeout 180s --for=condition=Available tigerastatus --all
 kubectl get tigerastatus
 kubectl get tigerastatus -o yaml
 
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+
 mkdir -p /home/vagrant/.kube
 cp /etc/kubernetes/admin.conf /home/vagrant/.kube/config
 chown 1000:1000 /home/vagrant/.kube/config
