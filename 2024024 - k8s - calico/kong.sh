@@ -31,6 +31,9 @@ spec:
   - name: proxy
     port: 80
     protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: All
 " | kubectl apply -f -
 
 
