@@ -1,0 +1,1 @@
+copy ..\data\.kube\config %USERPROFILE%\.kube\config /Y
