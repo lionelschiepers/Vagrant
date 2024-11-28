@@ -67,7 +67,7 @@ spec:
     name: harbor-portal
 " | kubectl apply -f -
 
-apt-get install docker docker-ce-cli jq
+apt-get install -y docker-ce docker-ce-cli jq
 # mkdir /etc/docker 2>/dev/null
 
 # if test -f /etc/default/docker; then
