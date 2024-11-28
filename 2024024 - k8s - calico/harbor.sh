@@ -99,7 +99,7 @@ echo '{
 docker image pull debian
 docker image tag debian:latest 127.0.0.1:30002/test/debian:latest
 
-docker login 127.0.0.1:30002 -u=admin -p=password
+echo password | docker login 127.0.0.1:30002 -u=admin --password-stdin
 docker image push 127.0.0.1:30002/test/debian:latest
 
 echo "Finished Harbor"
