@@ -22,8 +22,9 @@ Vagrant.configure("2") do |config|
     kub.vm.provision "shell", path: "harbor.sh"
     kub.vm.provision "shell", path: "prometheus.sh"
     kub.vm.provision "shell", path: "dashboard.sh"
-    kub.vm.provision "shell", path: "keycloak.sh"
+    kub.vm.provision "shell", path: "terraform.sh"
 =begin
+    kub.vm.provision "shell", path: "keycloak.sh"
     kub.vm.provision "shell", path: "otel.sh"
 =end
 
