@@ -68,8 +68,8 @@ kubectl taint nodes k8s-masternode dedicated=special-user:NoSchedule-
 systemctl restart containerd
 systemctl restart kubelet
 
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/tigera-operator.yaml
-curl https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml -O
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/tigera-operator.yaml
+curl https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/custom-resources.yaml -O
 sed -i 's/192.168.0.0\/16/10.244.0.0\/16/g' custom-resources.yaml
 kubectl create -f custom-resources.yaml
 
