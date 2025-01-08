@@ -40,13 +40,13 @@ spec:
 # https://medium.com/@martin.hodges/using-kong-to-access-kubernetes-services-using-a-gateway-resource-with-no-cloud-provided-8a1bcd396be9
 helm repo add kong https://charts.konghq.com
 helm repo update
-helm install kong kong/ingress -n kong --create-namespace --wait --timeout 3m \
+echo "installing kong at $(date "+%T")"
+helm install kong kong/ingress -n kong --create-namespace \
  --set gateway.admin.http.enabled=true \
 # --set gateway.proxy.type=NodePort \
 # --set gateway.proxy.http.enabled=true \
 # --set gateway.proxy.http.nodePort=32001 \
 # --set gateway.proxy.tls.enabled=false 
- 
 
 # assign the external ip address because k8s doesn't support external ip for the load balancer. This is a workaround
 # to access the load balancer from the host ip.
@@ -54,5 +54,8 @@ kubectl patch svc kong-gateway-proxy -n kong -p "{\"spec\": {\"type\": \"LoadBal
 kubectl patch --type=json gateways.gateway.networking.k8s.io kong -p='[{"op":"replace","path": "/spec/listeners/0/allowedRoutes/namespaces/from","value":"All"}]'
 
 kubectl get svc --namespace kong kong-gateway-proxy
+
+kubectl wait deployment -n kong --all --for condition=Available=True --timeout=300s
+echo "installed at $(date "+%T")"
 
 echo "Finished Kong"

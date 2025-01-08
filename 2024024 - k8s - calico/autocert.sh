@@ -16,7 +16,9 @@ echo abc > capwd.txt
 step ca init --deployment-type=standalone --name=Licaya --dns=localhost --address=:8443 --provisioner=ls@toto.com --password-file=capwd.txt
 step certificate fingerprint .step/certs/root_ca.crt
 
+step ca provisioner add acme -type ACME
 sudo step-ca .step/config/ca.json --password-file capwd.txt &
+sudo bash -c "step-ca .step/config/ca.json --password-file <(echo -n "abc")" &
 
 step ca root root.crt -f
 step ca certificate localhost srv.crt srv.key --password-file capwd.txt -f 
@@ -24,6 +26,9 @@ step ca certificate localhost srv.crt srv.key --password-file capwd.txt -f
 #or
  step certificate create --csr foo.example.com foo.csr foo.key
  step ca sign foo.csr foo.crt
+
+#acme
+step ca certificate --provisioner acme example.com example.crt example.key
 
 
 # helm repo add smallstep https://smallstep.github.io/helm-charts/
