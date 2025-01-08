@@ -2,7 +2,7 @@
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing Prometheus"
+echo "Installing Prometheus $(date "+%T")"
 whoami
 pwd
 
@@ -26,4 +26,4 @@ helm install prometheus prometheus-community/kube-prometheus-stack --create-name
 
 #kubectl create -f /vagrant_data/kubernetes/prometheus/prometheus-service.yaml --namespace=monitoring
 #kubectl get services -n monitoring
-echo "Prometheus installed"
+echo "Prometheus installed $(date "+%T")"

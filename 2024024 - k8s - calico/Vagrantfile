@@ -18,10 +18,11 @@ Vagrant.configure("2") do |config|
 
     kub.vm.provision "shell", path: "setup.sh"
     kub.vm.provision "shell", path: "kubernetes - setup.sh"
-    kub.vm.provision "shell", path: "kong.sh"
+    kub.vm.provision "shell", path: "kubernetes - setup calico.sh"
     kub.vm.provision "shell", path: "prometheus.sh"
-    kub.vm.provision "shell", path: "flagsmith.sh"
-    kub.vm.provision "shell", path: "terraform.sh"
+#    kub.vm.provision "shell", path: "kong.sh"
+#    kub.vm.provision "shell", path: "flagsmith.sh"
+#    kub.vm.provision "shell", path: "terraform.sh"
 
 =begin
     kub.vm.provision "shell", path: "dashboard.sh"
