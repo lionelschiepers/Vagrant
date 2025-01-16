@@ -11,6 +11,7 @@ kubectl apply -f https://download.elastic.co/downloads/eck/2.16.0/operator.yaml
 
 kubectl wait pod -n elastic-system --all --for=condition=ready --timeout=300s
 
+
 cat <<EOF | kubectl apply -f -
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
@@ -20,9 +21,17 @@ metadata:
 spec:
   version: 8.17.0
   nodeSets:
-  - name: default
+  - name: master
     count: 1
     config:
+      node.roles: ["master"]
+      node.store.allow_mmap: false
+      http.cors.enabled: true
+      http.cors.allow-origin: "*"
+  - name: ingest-data
+    count: 2
+    config:
+      node.roles: ["data", "ingest"]
       node.store.allow_mmap: false
       http.cors.enabled: true
       http.cors.allow-origin: "*"
@@ -46,6 +55,21 @@ ES_PASSWORD=$(kubectl get secret quickstart-es-elastic-user -o go-template='{{.d
 
 echo "Elasticsearch IP: $ES_IP"	
 echo "Elasticsearch password: $ES_PASSWORD"
+
+# set the number of replica to zero because the installation is not redudant. The inddices are show in yellow otherwise.
+curl http://$ES_IP:9200/_template/template1 -s  -u elastic:$ES_PASSWORD -X PUT -H "Content-Type: application/json" -d @- << EOF
+{
+  "index_patterns": [
+    "*"
+  ],
+  "order": 0,
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  }
+}
+EOF
+
 
 # cat <<EOF | kubectl apply -f -
 # apiVersion: v1
@@ -107,5 +131,150 @@ spec:
           - name: http
             containerPort: 8080
 " | kubectl apply -f -
+
+cat <<EOF | kubectl apply -f -
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: kibana
+  namespace: elastic-system
+spec:
+  version: 8.17.0
+  count: 1
+  elasticsearchRef:
+    name: quickstart
+EOF
+
+#fluentd
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluentd
+  namespace: elastic-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentd
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: fluentd
+roleRef:
+  kind: ClusterRole
+  name: fluentd
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: fluentd
+  namespace: elastic-system
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd
+  namespace: elastic-system
+  labels:
+    k8s-app: fluentd-logging
+    version: v1
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluentd-logging
+      version: v1
+  template:
+    metadata:
+      labels:
+        k8s-app: fluentd-logging
+        version: v1
+    spec:
+      serviceAccount: fluentd
+      serviceAccountName: fluentd
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: fluentd
+        image: fluent/fluentd-kubernetes-daemonset:v1-debian-elasticsearch8
+        env:
+          - name: K8S_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name:  FLUENT_ELASTICSEARCH_HOST
+            value: "quickstart-es-http.elastic-system.svc.cluster.local"
+          - name:  FLUENT_ELASTICSEARCH_PORT
+            value: "9200"
+          - name: FLUENT_ELASTICSEARCH_SCHEME
+            value: "http"
+          # Option to configure elasticsearch plugin with self signed certs
+          # ================================================================
+          - name: FLUENT_ELASTICSEARCH_SSL_VERIFY
+            value: "true"
+          # Option to configure elasticsearch plugin with tls
+          # ================================================================
+          - name: FLUENT_ELASTICSEARCH_SSL_VERSION
+            value: "TLSv1_2"
+          # X-Pack Authentication
+          # =====================
+          - name: FLUENT_ELASTICSEARCH_USER
+            value: "elastic"
+          - name: FLUENT_ELASTICSEARCH_PASSWORD
+            value: "$ES_PASSWORD"
+          - name: FLUENT_CONTAINER_TAIL_EXCLUDE_PATH
+            value: /var/log/containers/fluent*
+          - name: FLUENT_CONTAINER_TAIL_PARSER_TYPE
+            value: /^(?<time>.+) (?<stream>stdout|stderr)( (?<logtag>.))? (?<log>.*)$/
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        # When actual pod logs in /var/lib/docker/containers, the following lines should be used.
+        # - name: dockercontainerlogdirectory
+        #   mountPath: /var/lib/docker/containers
+        #   readOnly: true
+        # When actual pod logs in /var/log/pods, the following lines should be used.
+        - name: dockercontainerlogdirectory
+          mountPath: /var/log/pods
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      # When actual pod logs in /var/lib/docker/containers, the following lines should be used.
+      # - name: dockercontainerlogdirectory
+      #   hostPath:
+      #     path: /var/lib/docker/containers
+      # When actual pod logs in /var/log/pods, the following lines should be used.
+      - name: dockercontainerlogdirectory
+        hostPath:
+          path: /var/log/pods
+EOF
+
 
 echo "Elasticsearch installed $(date "+%T")"
