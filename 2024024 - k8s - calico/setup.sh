@@ -14,5 +14,6 @@ apt-get install -y apt-transport-https ca-certificates curl net-tools gnupg lsb-
 
 # systemctl restart snapd snapd.socket
 
+echo "waiting snap seed loaded"
 snap wait system seed.loaded
 snap install helm --classic
