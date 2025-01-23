@@ -1,0 +1,15 @@
+Vagrant.configure("2") do |config|
+  config.vm.define "kub" do |kub|
+    kub.vm.provider "vmware_desktop" do |vm_kub|
+      vm_kub.gui = false
+      vm_kub.vmx['numvcpus'] = '4' 
+      vm_kub.vmx['memsize'] = '8192'
+      vm_kub.ssh_info_public = true
+    end
+
+    kub.vm.box = "generic/ubuntu2204"
+    kub.vm.hostname = "llama"
+    kub.vm.synced_folder "../data", "/vagrant_data"
+    kub.vm.provision "shell", path: "setup.sh", privileged: false
+  end
+end
