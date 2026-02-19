@@ -6,10 +6,17 @@ echo "Setting up kubernetes CNI calico $(date "+%T")"
 whoami
 pwd
 
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/tigera-operator.yaml
-curl https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/custom-resources.yaml -O
+echo "Installing custom resources $(date "+%T")"
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/operator-crds.yaml
+
+echo "Installing operator $(date "+%T")"
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/tigera-operator.yaml
+
+echo "Installing ip tables custom resources $(date "+%T")"
+curl https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/custom-resources.yaml -O
 sed -i 's/192.168.0.0\/16/10.244.0.0\/16/g' custom-resources.yaml
 kubectl create -f custom-resources.yaml
+
 
 echo "Waiting calico is installed"
 sleep 30 # we first sleep because the namespace are not yet created for checking the status.
